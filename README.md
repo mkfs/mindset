@@ -13,6 +13,7 @@ The MindSet can be connected as a Serial Device (and also an Audio Sink or a
 HandsFree device) in Blueman (bash$ blueman-manager &).
 
 _Setup_
+
     1. Enable pairing on MindSet
     2. Click Search in BlueMan
     3. Select MindSet device in BlueMan
