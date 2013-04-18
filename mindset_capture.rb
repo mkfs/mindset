@@ -14,6 +14,18 @@ class EndOfTransmissionError < RuntimeError; end
 class ByteNotReceivedError < RuntimeError; end
 class ConnectionTimeoutError < RuntimeError; end
 
+def parse_packet(buf)
+  hex = []
+  buf.bytes.each { |c| hex << "%02X" % c }
+  puts hex.join(' ')
+end
+
+def read_n_bytes(conn, n)
+  bytes = []
+  n.times { bytes << conn.readbyte }
+  bytes.join ''
+end
+
 def while_not_byte(conn, val, &block)
   cont = true
   while cont
@@ -55,12 +67,18 @@ def wait_for_byte(conn, val, max_counter=6000)
 end
 
 def read_packet(conn)
-  wait_for_byte(conn, BT_SYNC, max_counter=6000)
-  wait_for_byte(conn, BT_SYNC, max_counter=6000)
-  plen = wait_for_not_byte(conn, BT_SYNC, max_counter=6000)
-  # TODO : parse packet
-  puts "PLEN #{plen}"
-  while_not_byte( conn, BT_SYNC ) { |c| puts "%02X" % c }
+  # two BT_SYNCs in a row mean the packet wll follow
+  wait_for_byte(conn, BT_SYNC, 100)
+  wait_for_byte(conn, BT_SYNC, 100)
+
+  plen = wait_for_not_byte(conn, BT_SYNC, 100)
+  # if PLEN >= BT_SYNC, packet is invalid
+  if plen >= BT_SYNC
+    return
+  end
+
+  buf = read_n_bytes(conn, plen)
+  parse_packet buf
 end
 
 MINDSET_BAUD = 57600
