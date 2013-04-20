@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
-# Receive data from bluetooth and print to stdout
-# assumes /dev/rfcomm0 if device is not provided
+# Receive data from bluetooth and print to stdout. Assumes /dev/rfcomm0.
+# Usage: 
+#   mindset_capture.rb [-aehjqrvw] [-sn num] [DEVICE]
+# (c) Copyright 2013 mkgs@github http://github.com/mkfs/mindset                 
+# License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
 require 'ostruct'
 require 'optparse'
@@ -247,18 +250,24 @@ def get_options(args)
   options.device = DEFAULT_SERIAL_PORT
 
   opts = OptionParser.new do |opts|
-    opts.banner = "Usage: #{File.basename $0} [] [DEVICE]"
+    opts.banner = "Usage: #{File.basename $0} [-aehjqrvw] [-sn num] [DEVICE]"
     opts.separator ""
+    opts.separator "Notes:"
+    opts.separator " * DEVICE defaults to /dev/rfcomm0"
+    opts.separator " * Ctrl-C will terminate if both -s and -n are not set"
+    opts.separator " * JSON output will only be written on exit."
+    opts.separator ""
+     
     opts.separator "Options:"
 
       opts.on('-a', '--all', 'Capture all data types') { 
         options.esense = options.quality = options.raw = options.wave = true }
       opts.on('-e', '--esense', 'Capture eSense (attention, meditation) data') {
         options.esense = true }
-      opts.on('q', '--quality', 'Capture signal quality data') { 
+      opts.on('-q', '--quality', 'Capture signal quality data') { 
         options.quality = true }
       opts.on('-r', '--raw', 'Capture raw wave data') { options.raw = true }
-      opts.on('-w', '--wave', 'Capture ASIC brainwave data') { 
+      opts.on('-w', '--wave', 'Capture ASIC brainwave data [default]') { 
         options.wave = true }
       opts.on('-j', '--json', 'Generate JSON output') { options.json = true }
       opts.on('-s', '--seconds n', 'Capture for n seconds') { |n| 
