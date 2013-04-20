@@ -118,17 +118,13 @@ def skip_packet?(pkt, options)
 end
 
 def store_packets( h, packets, options )
-  packets.each do |pkt| 
-    pkt.each { |k,v| h[k] << v }
-  end
+  packets.each { |pkt| pkt.each { |k,v| h[k] << v } }
 end
 
 def print_packets( packets, options )
   label = options.multi || options.verbose
   packets.each do |pkt|
-    pkt.each { |k,v| 
-      puts "%s%d" % [(label ? k.to_s.upcase + ': ' : ''), v] 
-    }
+    pkt.each { |k,v| puts "%s%d" % [(label ? k.to_s.upcase + ': ' : ''), v] }
   end
 end
 
