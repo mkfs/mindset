@@ -50,7 +50,7 @@ def decode_data_row(excode, code, value, verbose=nil)
   when CODE_BLINK
     { :blink => value.first }
   when CODE_WAVE
-    { :wave => value[0,2].join('').unpack("s>") }
+    { :wave => value[0,2].join('').unpack("s>").first }
   when CODE_ASIC_EEG
     unpack_asic_eeg(value[0,24])
   else
@@ -101,15 +101,34 @@ def new_packet_store
   }
 end
 
+def is_asic_wave?(pkt)
+  ([:lo_beta, :hi_beta, :delta, :lo_gamma, :theta, :mid_gamma, :lo_alpha, 
+    :hi_alpha] & pkt.keys).count > 0
+end
+
+def is_esense?(pkt)
+  (pkt.keys.include? :attention) || (pkt.keys.include? :meditation)
+end
+
+def skip_packet?(pkt, options)
+  ((pkt.keys.include? :wave) && ! options.raw) ||
+  ((pkt.keys.include? :signal_quality) && ! options.quality) ||
+  ((is_asic_wave? pkt) && ! options.wave) ||
+  ((is_esense? pkt) && ! options.esense)
+end
+
 def store_packets( h, packets, options )
-  h[:end_ts] = Time.now
-  packets.each { |pkt| pkt.each { |k,v| h[k] << v } }
+  packets.each do |pkt| 
+    pkt.each { |k,v| h[k] << v }
+  end
 end
 
 def print_packets( packets, options )
   label = options.multi || options.verbose
   packets.each do |pkt|
-    pkt.each { |k,v| puts "%s%d" % [(label ? k.to_s.upcase + ': ' : ''), v] }
+    pkt.each { |k,v| 
+      puts "%s%d" % [(label ? k.to_s.upcase + ': ' : ''), v] 
+    }
   end
 end
 
@@ -193,7 +212,8 @@ def read_bt_data(options)
   cont = true
   while cont
     begin
-      packets = read_packet(bt, options.verbose)
+      packets = read_packet(bt, options.verbose).reject { |pkt| 
+                skip_packet? pkt, options }
       num += packets.length
       if options.json
         store_packets( h_pkt, packets, options )
@@ -211,6 +231,7 @@ def read_bt_data(options)
   end
 
   if options.json
+    h_pkt[:end_ts] = Time.now
     puts packets_to_json( h_pkt, options )
   end
 end
@@ -227,7 +248,7 @@ def get_options(args)
   options.verbose = false
   options.count = nil
   options.seconds = nil
-  options.device = nil
+  options.device = DEFAULT_SERIAL_PORT
 
   opts = OptionParser.new do |opts|
     opts.banner = "Usage: #{File.basename $0} [] [DEVICE]"
@@ -255,7 +276,7 @@ def get_options(args)
     opts.parse! args
     options.wave = true if (! options.wave) && (! options.esense) && 
                            (! options.raw) && (! options.quality)
-    options.multi = [ options.wave, options.raw,  option.esense, 
+    options.multi = [ options.wave, options.raw,  options.esense, 
                       options.quality ].select { |x| x }.count > 1
                    
     options.device = args.shift if args.length > 0
