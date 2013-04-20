@@ -10,7 +10,7 @@ Using a MindSet under Linux
 **GUI Tools**
 
 The MindSet can be connected as a Serial Device (and also an Audio Sink or a
-HandsFree device) in Blueman (bash$ blueman-manager &).
+HandsFree device) in Blueman (`blueman-manager`).
 
 _Setup_
 
@@ -76,7 +76,7 @@ BlueMan.
 
 The bytes "AT+BRSF=24\r" are probably coming from rfcomm and not from the 
 MindSet, hence the subsequent EOF -- matching the behavior of connecting via
-`rfcomm bind`. This is likely a bug with rfcomm.
+`rfcomm bind`. This appears to be a problem in the socket opened by rfcomm.
 
 
 **Neurosky Applications**
