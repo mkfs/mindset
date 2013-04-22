@@ -51,7 +51,7 @@ remove the MindSet from the list of recognized devices. Restart the
 system Bluetooth daemon.
 
     1. Run `hcitool scan` to get the bluetooth address of the Mindset
-    2. Run  `bluez-simple-agent hci0i ##:##:##:##:##:##` to pair the
+    2. Run  `bluez-simple-agent hci0 ##:##:##:##:##:##` to pair the
        device. If the device is already connected, run
        `bluez-simple-agent hci0 ##:##:##:##:##:## remove` to unpair the
        device, then attempt to pair again. The slower reader may not be

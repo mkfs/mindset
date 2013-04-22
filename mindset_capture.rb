@@ -29,15 +29,22 @@ CODE_ASIC_EEG = 0x83       # ASIC EEG POWER 8 3-byte big-endian integers
 class ConnectionTimeoutError < RuntimeError; end
 
 # ----------------------------------------------------------------------
+# Treat 3-element array as a 3-byte integer in big-endian order
+# Note: This zero-pads the integer to 4-bytes before calling unpack, which
+#       may not be correct if the values can be signed.
+def unpack_3byte_bigendian(arr)
+  arr.unshift(0).pack('cccc').unpack('L>').first
+end
+
 def unpack_asic_eeg(arr)
-  { :delta => arr[0,3].unshift(0).pack('cccc').unpack('L>').first,
-    :theta => arr[3,3].unshift(0).pack('cccc').unpack('L>').first,
-    :lo_alpha => arr[6,3].unshift(0).pack('cccc').unpack('L>').first,
-    :hi_alpha => arr[9,3].unshift(0).pack('cccc').unpack('L>').first,
-    :lo_beta => arr[12,3].unshift(0).pack('cccc').unpack('L>').first,
-    :hi_beta => arr[15,3].unshift(0).pack('cccc').unpack('L>').first,
-    :lo_gamma => arr[18,3].unshift(0).pack('cccc').unpack('L>').first,
-    :mid_gamma => arr[21,3].unshift(0).pack('cccc').unpack('L>').first
+  { :delta => unpack_3byte_bigendian(arr[0,3]),
+    :theta => unpack_3byte_bigendian(arr[3,3]),
+    :lo_alpha => unpack_3byte_bigendian(arr[6,3]),
+    :hi_alpha => unpack_3byte_bigendian(arr[9,3]),
+    :lo_beta => unpack_3byte_bigendian(arr[12,3]),
+    :hi_beta => unpack_3byte_bigendian(arr[15,3]),
+    :lo_gamma => unpack_3byte_bigendian(arr[18,3]),
+    :mid_gamma => unpack_3byte_bigendian(arr[21,3])
     }
 end
 
