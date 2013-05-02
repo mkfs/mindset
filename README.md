@@ -42,8 +42,8 @@ and PacketStore objects.
       while cont
         begin
            packets = conn.read_packet
-	   packets.each { |pkt| puts pkt.inspect }
-	rescue Mindset::Connection::TimeoutError, Interrupt => e
+           packets.each { |pkt| puts pkt.inspect }
+        rescue Mindset::Connection::TimeoutError, Interrupt => e
           cont = false
         end
       end
