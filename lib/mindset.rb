@@ -117,11 +117,9 @@ packet.
 
     private
 
-    # Treat 3-element array as a 3-byte integer in big-endian order
-    # Note: This zero-pads the integer to 4-bytes before calling unpack, which
-    #       may not be correct if the values can be signed.
+    # Treat 3-element array as a 3-byte unsigned integer in little-endian order
     def unpack_3byte_bigendian(arr)
-      arr.unshift(0).pack('cccc').unpack('L>').first
+      arr.push(0).pack('cccc').unpack('L<').first
     end
 
     def unpack_asic_eeg(arr)
