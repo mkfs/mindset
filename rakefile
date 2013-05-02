@@ -1,0 +1,60 @@
+# Ruby Rakefile for Mindset module
+# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset
+
+require 'rdoc/task'
+require 'rubygems/package_task'
+
+MOD_NAME    = 'mindset'
+MOD_VERSION = '0.2'
+
+# ---------------------------------------------------------------------- 
+# Default build target(s)
+task :default => [:gem]
+
+MOD_FILES = FileList[
+  'bin/*.rb',
+  'lib/*.rb'
+]
+
+# ---------------------------------------------------------------------- 
+# GEM
+
+spec = Gem::Specification.new do |spec|
+  spec.name = MOD_NAME
+  spec.version = MOD_VERSION
+  spec.summary = 'Read data from a Neurosky Mindset'
+  spec.description = 'This module reads all data transmitted by a Neurosky
+Mindset, which must already be paired in Bluetooth and have a Bluetooth serial
+(SPP) socket open. The gem provides the module and a command line utility for
+reading packets and either printing them to STDOUT in realtime, or serializing 
+them to STDOUT in JSON on exit.'
+
+  spec.author = 'mkfs'
+  spec.email = 'see.url@github.com'
+  spec.homepage = 'https://github.com/mkfs/mindset'
+  spec.license = "BSD"
+
+  spec.required_ruby_version = '>= 1.9.2'
+  spec.requirements = ["'json' gem >= 1.5.0", "'serialport' gem >= 1.1.0"]
+
+  spec.files = MOD_FILES
+end
+
+Gem::PackageTask.new(spec) do |pkg|
+  pkg.need_zip = true
+  pkg.need_tar = true
+end
+
+# ---------------------------------------------------------------------- 
+# RDOC
+
+RDoc::Task.new do |rd|
+  # Page to display in index.html
+  #rd.main = 'README.rdoc'
+
+  # Output directory
+  rd.rdoc_dir = 'doc/html'
+
+  # Doc and embedded-doc files for rdoc to process
+  #rd.rdoc_files << 'README.rdoc' 
+end

@@ -2,7 +2,7 @@
 # Receive data from bluetooth and print to stdout. Assumes /dev/rfcomm0.
 # Usage: 
 #   mindset_capture.rb [-aehjqrvw] [-sn num] [DEVICE]
-# (c) Copyright 2013 mkgs@github http://github.com/mkfs/mindset                 
+# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset                 
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
 require 'ostruct'
@@ -13,8 +13,12 @@ require 'mindset'
 def skip_packet?(pkt, options)
   ((pkt.keys.include? :wave) && ! options.raw) ||
   ((pkt.keys.include? :signal_quality) && ! options.quality) ||
-  ((is_asic_wave? pkt) && ! options.wave) ||
-  ((is_esense? pkt) && ! options.esense)
+  ((pkt.is_asic_wave?) && ! options.wave) ||
+  ((pkt.is_esense?) && ! options.esense)
+end
+
+def store_packets( h, packets, options )
+  packets.each { |pkt| pkt.each { |k,v| h[k] << v } }
 end
 
 def print_packets( packets, options )
@@ -55,7 +59,7 @@ def read_mindset_bt(options)
 
   if options.json
     h_pkt[:end_ts] = Time.now
-    puts packets_to_json( h_pkt, options )
+    puts h_pkt.to_json
   end
 end
 

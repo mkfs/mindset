@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 # Ruby module for reading data from a Neurosky Mindset.
-# (c) Copyright 2013 mkgs@github http://github.com/mkfs/mindset                 
+# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset                 
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
 require 'rubygems'                    # gem install serialport
@@ -11,6 +11,8 @@ require 'json/ext'
 module Mindset
 
 =begin rdoc
+Collection of captured Packet objects. Packets are collected by type. The 
+start and end timestamps are saved.
 =end
   class PacketStore < Hash
     def initialize
@@ -41,6 +43,9 @@ module Mindset
 
   # ----------------------------------------------------------------------
 =begin rdoc
+A Mindset data packet.
+This is usually either a Raw data packet, an eSense packet, or an ASIC EEG
+packet.
 =end
   class Packet < Hash
     EXCODE = 0x55              # Extended code
@@ -65,7 +70,7 @@ module Mindset
         vlen = (code >= 0x80) ? bytes.shift : 1
         value = bytes.slice! 0, vlen
         pkt = Packet.new
-        pkt.decode_data_row(excode, code, value, verbose)
+        pkt.decode(excode, code, value, verbose)
         packets << pkt
       end
 
@@ -133,6 +138,9 @@ module Mindset
 
   # ----------------------------------------------------------------------
 =begin rdoc
+A connection to a Mindset device. This wraps the SerialPort connection to the
+device. Device must already be paired and have a serial bluetooth connection
+established.
 =end
   class Connection < SerialPort
     SERIAL_PORT = "/dev/rfcomm0"
@@ -216,14 +224,25 @@ module Mindset
   end
 
   # ----------------------------------------------------------------------
-  def self.connect(device, verbose=false)
+=begin rdoc
+Return a Mindset::Connection object for device.
+If a block is provided, this yields the Connection object, then disconnects it
+when the block returns.
+=end
+  def self.connect(device, verbose=false, &block)
     $stderr.puts "CONNECT #{device}, #{MINDSET_BAUD}" if verbose
     begin
-      return Connection.new device
+      conn = Connection.new device
+      if block_given?
+        yield conn
+        conn.disconnect
+      else
+        return conn
+      end
     rescue TypeError => e
       $stderr.puts "Could not connect to #{device}: #{e.message}"
-      nil
     end
+    nil
   end
 
 end

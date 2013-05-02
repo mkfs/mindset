@@ -3,6 +3,50 @@
                Ruby and R code for working with a Neurosky Mindset
 
 
+Mindset gem
+===========
+
+The gem provides the mindset_capture utility:
+    bash$ mindset_capture -h
+    Usage: mindset_capture.rb [-aehjqrvw] [-sn num] [DEVICE]
+
+    Notes:
+     * DEVICE defaults to /dev/rfcomm0
+     * Ctrl-C will terminate if both -s and -n are not set
+     * JSON output will only be written on exit.
+
+    Options:
+        -a, --all                Capture all data types
+        -e, --esense             Capture eSense (attention, meditation) data
+        -q, --quality            Capture signal quality data
+        -r, --raw                Capture raw wave data
+        -w, --wave               Capture ASIC brainwave data [default]
+        -j, --json               Generate JSON output
+        -s, --seconds n          Capture for n seconds
+        -n, --num n              Capture up to n data points
+        -v, --verbose            Show debug output
+        -h, --help               Show help screen
+    bash$ mindset_capture -aj -s 300 > eeg_data.json
+
+To run from the repo, set the RUBYLIB to include the lib subdir:
+    bash$ RUBYLIB=lib bin/mindset_capture -h
+
+The gem provides the Mindset module, which contains the Connection, Packet,
+and PacketStore objects.
+
+    require 'mindset'
+    Mindset.connect(options.device, options.verbose) do |conn|
+      cont = true
+      while cont
+        begin
+           packets = conn.read_packet
+	   packets.each { |pkt| puts pkt.inspect }
+	rescue Mindset::Connection::TimeoutError, Interrupt => e
+          cont = false
+        end
+      end
+    end
+
 Using a MindSet under Linux
 ===========================
 
