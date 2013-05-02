@@ -1,0 +1,117 @@
+#!/usr/bin/env ruby
+# Receive data from bluetooth and print to stdout. Assumes /dev/rfcomm0.
+# Usage: 
+#   mindset_capture.rb [-aehjqrvw] [-sn num] [DEVICE]
+# (c) Copyright 2013 mkgs@github http://github.com/mkfs/mindset                 
+# License: BSD http://www.freebsd.org/copyright/freebsd-license.html
+
+require 'ostruct'
+require 'optparse'
+
+require 'mindset'
+
+def skip_packet?(pkt, options)
+  ((pkt.keys.include? :wave) && ! options.raw) ||
+  ((pkt.keys.include? :signal_quality) && ! options.quality) ||
+  ((is_asic_wave? pkt) && ! options.wave) ||
+  ((is_esense? pkt) && ! options.esense)
+end
+
+def print_packets( packets, options )
+  label = options.multi || options.verbose
+  packets.each do |pkt|
+    pkt.each { |k,v| puts "%s%d" % [(label ? k.to_s.upcase + ': ' : ''), v] }
+  end
+end
+
+def read_mindset_bt(options)
+  conn = Mindset.connect(options.device, options.verbose)
+  return if ! conn
+
+  h_pkt = Mindset::PacketStore.new
+  num = 0
+  cont = true
+  while cont
+    begin
+      packets = conn.read_packet(options.verbose).reject { |pkt| 
+                skip_packet? pkt, options }
+      num += packets.length
+      if options.json
+        store_packets( h_pkt, packets, options )
+      else
+        print_packets( packets, options )
+      end
+
+      cont = false if (options.count && num >= options.count)
+      cont = false if (options.seconds && 
+                       Time.now - h_pkt[:start_ts] >= options.seconds)
+
+      rescue Mindset::Connection::TimeoutError, Interrupt => e
+        cont = false
+    end
+  end
+
+  conn.disconnect
+
+  if options.json
+    h_pkt[:end_ts] = Time.now
+    puts packets_to_json( h_pkt, options )
+  end
+end
+
+def get_options(args)
+  options = OpenStruct.new
+  options.esense = false
+  options.quality = false
+  options.raw = false
+  options.wave = false
+  options.multi = false
+  options.json = false
+  options.verbose = false
+  options.count = nil
+  options.seconds = nil
+  options.device = Mindset::Connection::SERIAL_PORT
+
+  opts = OptionParser.new do |opts|
+    opts.banner = "Usage: #{File.basename $0} [-aehjqrvw] [-sn num] [DEVICE]"
+    opts.separator ""
+    opts.separator "Notes:"
+    opts.separator " * DEVICE defaults to #{options.device}"
+    opts.separator " * Ctrl-C will terminate if both -s and -n are not set"
+    opts.separator " * JSON output will only be written on exit."
+    opts.separator ""
+     
+    opts.separator "Options:"
+
+      opts.on('-a', '--all', 'Capture all data types') { 
+        options.esense = options.quality = options.raw = options.wave = true }
+      opts.on('-e', '--esense', 'Capture eSense (attention, meditation) data') {
+        options.esense = true }
+      opts.on('-q', '--quality', 'Capture signal quality data') { 
+        options.quality = true }
+      opts.on('-r', '--raw', 'Capture raw wave data') { options.raw = true }
+      opts.on('-w', '--wave', 'Capture ASIC brainwave data [default]') { 
+        options.wave = true }
+      opts.on('-j', '--json', 'Generate JSON output') { options.json = true }
+      opts.on('-s', '--seconds n', 'Capture for n seconds') { |n| 
+        options.seconds = Integer(n) }
+      opts.on('-n', '--num n', 'Capture up to n data points') { |n| 
+        options.count = Integer(n) }
+      opts.on('-v', '--verbose', 'Show debug output') { options.verbose = true }
+      opts.on_tail('-h', '--help', 'Show help screen') { puts opts; exit 1 }
+    end
+
+    opts.parse! args
+    options.wave = true if (! options.wave) && (! options.esense) && 
+                           (! options.raw) && (! options.quality)
+    options.multi = [ options.wave, options.raw,  options.esense, 
+                      options.quality ].select { |x| x }.count > 1
+                   
+    options.device = args.shift if args.length > 0
+
+    options
+end
+
+if __FILE__ == $0
+  read_mindset_bt(get_options ARGV)
+end
