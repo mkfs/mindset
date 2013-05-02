@@ -7,6 +7,7 @@ Mindset gem
 ===========
 
 The gem provides the mindset_capture utility:
+
     bash$ mindset_capture -h
     Usage: mindset_capture.rb [-aehjqrvw] [-sn num] [DEVICE]
 
@@ -29,6 +30,7 @@ The gem provides the mindset_capture utility:
     bash$ mindset_capture -aj -s 300 > eeg_data.json
 
 To run from the repo, set the RUBYLIB to include the lib subdir:
+
     bash$ RUBYLIB=lib bin/mindset_capture -h
 
 The gem provides the Mindset module, which contains the Connection, Packet,
