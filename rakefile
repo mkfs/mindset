@@ -16,6 +16,10 @@ MOD_FILES = FileList[
   'lib/*.rb'
 ]
 
+RDOC_EXTRA_FILES = FileList[
+  'doc/mindset/*.rdoc'
+]
+
 # ---------------------------------------------------------------------- 
 # GEM
 
@@ -57,4 +61,5 @@ RDoc::Task.new do |rd|
 
   # Doc and embedded-doc files for rdoc to process
   #rd.rdoc_files << 'README.rdoc' 
+  rd.rdoc_files += RDOC_EXTRA_FILES
 end

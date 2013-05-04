@@ -1,0 +1,123 @@
+These are excepts from the Neurosky document, "Mindset Communications Protocol",
+included in the MDT.
+
+ASIC_EEG_POWER
+
+This Data Value represents the current magnitude of 8 commonly-recognized types 
+of EEG (brainwaves). This Data Value is output as a series of eight 3-byte 
+unsigned integers in little-endian format.  The eight EEG powers are output in 
+the following order: 
+
+  delta (0.5 - 2.75Hz)
+  theta (3.5 - 6.75Hz)
+  low-alpha (7.5 - 9.25Hz)
+  high-alpha (10 - 11.75Hz)
+  low-beta (13 - 16.75Hz)
+  high-beta (18 - 29.75Hz)
+  low-gamma (31 - 39.75Hz)
+  mid-gamma (41 - 49.75Hz)
+
+These values have no units and therefore are only meaningful compared to each 
+other and to themselves, to consider relative quantity and temporal 
+fluctuations.
+
+This is typically output once a second.
+
+
+eSENSE
+
+Relative eSense scale of 1 to 100.
+
+On this scale, a value between 40 to 60 at any given moment in time is 
+considered "neutral", and is similar in notion to "baselines" that are 
+established in conventional EEG measurement techniques (though the method for 
+determining a ThinkGear baseline is proprietary and may differ from conventional
+EEG). 
+
+A value from 60 to 80 is considered "slightly elevated", and may be interpreted 
+as levels being possibly higher than normal (levels of Attention or Meditation 
+that maybe higher than normal for a given person). 
+
+Values from 80 to 100 are considered "elevated", meaning they are strongly 
+indicative of heightened levels of that eSense.
+
+Similarly, on the other end of the scale, a value between 20 to 40 indicates 
+"reduced" levels of the eSense, while a value between 1 to 20 indicates 
+"strongly lowered" levels of the eSense. These levels may indicate states of 
+distraction, agitation, or abnormality, according to the opposite of each 
+eSense.
+
+An eSense meter value of 0 is a special value indicating the ThinkGear is 
+unable to calculate an eSense level with a reasonable amount of reliability. 
+This may be (and usually is) due to excessive noise as described in the 
+POOR_SIGNAL Quality section above.
+
+The reason for the somewhat wide ranges for each interpretation is that some 
+parts of the eSense algorithm are dynamically learning, and at times employ 
+some "slow-adaptive" algorithms to adjust to natural fluctuations and trends 
+of each user, accounting for and compensating for the fact that EEG in the 
+human brain is subject to normal ranges of variance and fluctuation. This is 
+part of the reason why ThinkGear sensors are able to operate on a wide range of 
+individuals under an extremely wide range of personal and environmental 
+conditions while still giving good accuracy and reliability.
+
+Developers are encouraged to further interpret and adapt these guideline ranges
+to be fine-tuned for their application (as one example, an application could 
+disregard values below 60 and only react to values between 60-100, interpreting
+them as the onset of heightened attention levels).
+
+These are output once a second.
+
+
+POOR_SIGNAL
+
+This unsigned one-byte integer value describes how poor the signal measured by 
+the ThinkGear is. It ranges in value from 0 to 200. Any non-zero value 
+indicates that some sort of noise contamination is detected. The higher the 
+number, the more noise is detected. A value of 200 has a special meaning,
+specifically that the ThinkGear contacts are not touching the user's skin.
+
+This value is typically output every second, and indicates the poorness of the 
+most recent measurements.
+
+Poor signal may be caused by a number of different things. In order of severity,
+they are:
+ * Sensor, ground, or reference contacts not being on a person's head 
+   (i.e. when nobody is wearing the ThinkGear).
+ * Poor contact of the sensor, ground, or reference contacts to a person's skin
+   (i.e. hair in the way, or headset which does not properly fit a person's 
+    head, or headset not properly placed on the head).
+ * Excessive motion of the wearer (i.e. moving head or body excessively, 
+   jostling the headset).
+ * Excessive environmental electrostatic noise (some environments have strong 
+   electric signals or static electricity buildup in the person wearing the 
+   sensor).
+ * Excessive non-EEG biometric noise (i.e. EMG, EKG/ECG, EOG, etc)
+
+A certain amount of noise is unavoidable in normal usage of ThinkGear, and both
+ NeuroSky's filtering technology and eSense algorithm have been designed to 
+detect, correct, compensate for, account for, and tolerate many types of 
+non-EEG noise. Most typical users who are only interested in using the eSense 
+values, such as Attention and Meditation, do not need to worry too much about 
+the POOR_SIGNAL Quality value, except to note that the Attention and Meditation
+values will not be updated while POOR_SIGNAL is detected. The POOR_SIGNAL 
+Quality value is more useful to some applications which need to be more 
+sensitive to noise (such as some medical or research applications), or 
+applications which need to know right away when there is even minor noise 
+detected.
+
+It is typically output once a second.
+
+
+RAW Wave Value
+
+This Data Value consists of two bytes, and represents a single raw wave sample. 
+
+Its value is a signed 16-bit integer that ranges from -32768 to 32767.
+
+Each ThinkGear model reports its raw wave information in only certain areas of 
+the full -32768 to 32767 range. For example, MindSet reports raw waves that 
+fall between approximately -2048 to 2047.
+
+By default, this is outputed 512 times a second, or approximately once every 
+2ms.

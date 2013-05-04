@@ -1,0 +1,360 @@
+#!/usr/bin/env ruby
+# Usage: qmindset [-f input_file] [DEVICE]
+
+require 'ostruct'
+require 'optparse'
+
+require 'Qt4'
+
+require 'mindset'
+# TODO: connection should have its own thread
+# TODO: record data. have event buttons (allow user to enter string). -o ?
+ 
+# ----------------------------------------------------------------------
+=begin rdoc
+Timer that fires 8 times a second
+=end
+class MindsetTimer < Qt::Object
+  attr_reader :id, :obj
+
+  def initialize(obj)
+    super(nil)
+    @obj = obj
+    @id = startTimer(125)
+  end
+
+  def timerEvent(event)
+    @obj.timerEvent
+  end
+
+  def stopTimer
+    killTimer @id
+  end
+end
+
+# ----------------------------------------------------------------------
+
+class PlotWidget < Qt::Widget
+
+  def initialize(w_width, w_height, parent)
+    super parent
+    @items = []
+    @buffer ||= {}
+    @x_mul ||= 1
+
+    init_pens
+    resize Qt::Size.new(w_width, w_height)
+    sizePolicy = Qt::SizePolicy::Preferred
+
+    @scene = Qt::GraphicsScene.new
+    @view = Qt::GraphicsView.new(@scene, self)
+    set_view_size(w_width, w_height)
+
+    @view.renderHint = Qt::Painter::Antialiasing
+    @view.show
+
+    set_background
+  end
+
+  def add_data(packets)
+    @buffer.keys.each { |k| @buffer[k].concat extract_packets(packets, k) }
+    trim_data
+  end
+
+  def trim_data
+    @buffer.keys.each do |k| 
+      diff = @buffer[k].count - (1.0 * @scene_width / @x_mul).ceil.to_i
+      @buffer[k] = @buffer[k].drop(diff) if diff > 0
+    end
+  end
+
+
+  def plot_data
+    clear_lines
+    @buffer.keys.each { |k| plot_data_line(k, @buffer[k]) }
+  end
+
+  def plot_data_line(sym, data)
+    return if data.empty?
+    set_delta_and_offset(data)
+
+    ppath = Qt::PainterPath.new(Qt::PointF.new 0, scale_y(data[0]))
+    data[1..-1].each_with_index do |val, idx|
+      x = idx * @x_mul
+      ppath.line_to(Qt::PointF.new x, scale_y(val))
+    end
+    @items << @scene.addPath(ppath, @pens[sym])
+  end
+
+  def clear_lines
+    @items.each { |item| @scene.removeItem item }
+    @items.clear
+  end
+
+  def add_datapoint(sym, x, y)
+    @scene.addEllipse( x, scale_y(y), 1, 1)
+  end
+
+  def scale_y(val)
+    ((val + @offset) * @delta).to_i
+  end
+
+  def extract_packets(packets, name)
+    packets.inject([]) { |arr, p| arr << p[name] if p[name]; arr }
+  end
+
+  def resizeEvent(ev)
+    set_view_size(ev.size.width, ev.size.height)
+  end
+
+  private
+
+  def set_delta_and_offset(data)
+    min = data.min
+    max = data.max 
+    diff = max - min
+    diff = 1 if diff == 0
+    disp_diff = @scene_height
+    @delta = (1.0 * disp_diff) / diff
+    @offset = -min
+  end
+
+  def set_view_size(w_width, w_height)
+    @scene_height = w_height - 10
+    @scene_width = w_width - 10
+    @scene.setSceneRect(0, 0, @scene_width, @scene_height)
+    @view.resize Qt::Size.new(w_width, w_height)
+    trim_data
+  end
+
+  def make_pen(col, p_width, ltype=Qt::SolidLine)
+    pen = Qt::Pen.new
+    pen.setColor Qt::Color.new(col)
+    pen.width = p_width
+    pen.style = ltype
+    pen.joinStyle = Qt::RoundJoin
+    pen
+  end
+
+  def init_pens
+    @pens = {
+      :wave => make_pen(Qt::green, 1),
+      :delta => make_pen(Qt::white, 3),
+      :theta => make_pen(Qt::yellow, 3),
+      :lo_alpha => make_pen(Qt::red, 3, Qt::DotLine),
+      :hi_alpha => make_pen(Qt::darkRed, 3, Qt::DashLine),
+      :lo_beta => make_pen(Qt::green, 3, Qt::DotLine),
+      :hi_beta => make_pen(Qt::darkGreen, 3, Qt::DashLine),
+      :lo_gamma => make_pen(Qt::blue, 3, Qt::DotLine),
+      :mid_gamma => make_pen(Qt::darkBlue, 3, Qt::DashDotLine),
+      :attention => make_pen(Qt::red, 4),
+      :meditation => make_pen(Qt::blue, 4)
+    }
+  end
+
+  def set_background
+    @scene.backgroundBrush = Qt::Color.new(Qt::black)
+    #@scene.foregroundBrush = Qt::Color.new(Qt::white)
+  end
+end
+
+# ----------------------------------------------------------------------
+class WavePlotWidget < PlotWidget
+  def initialize(width, height, parent)
+    @x_mul = 2
+    @buffer = []
+    super
+  end
+
+  def add_data(packets)
+    @buffer.concat extract_packets(packets, :wave)
+    trim_data
+  end
+
+  def trim_data
+    diff = @buffer.count - (@scene_width / @x_mul).to_i
+    @buffer = @buffer.drop(diff) if diff > 0
+  end
+
+  def plot_data
+    clear_lines
+    plot_data_line(:wave, @buffer)
+  end
+end
+
+# ----------------------------------------------------------------------
+class AsicPlotWidget < PlotWidget
+  def initialize(width, height, parent)
+    @x_mul = 50
+    @buffer = {
+      :delta => [],
+      :theta => [],
+      :lo_alpha => [],
+      :hi_alpha => [],
+      :lo_beta => [],
+      :hi_beta => [],
+      :lo_gamma => [],
+      :mid_gamma => []
+    }
+    super
+  end
+end
+
+# ----------------------------------------------------------------------
+class EsensePlotWidget < PlotWidget
+  def initialize(width, height, parent)
+    @x_mul = 8
+    @buffer = {
+      :attention => [],
+      :meditation => []
+    }
+    super
+  end
+end
+
+# ----------------------------------------------------------------------
+=begin rdoc
+=end
+class MindsetWindow < Qt::Widget
+  attr_reader :timer
+  attr_reader :wave_plot, :asic_plot, :esense_plot
+
+  def initialize(conn, win_size=Qt::Size.new(800,600), parent=nil)
+    super parent
+    resize( win_size )
+
+    @conn = conn
+    w_height = (height / 2) - 10
+    w_width = (width / 3) - 2 
+    @wave_plot = WavePlotWidget.new width - 4, w_height, self
+    @asic_plot = AsicPlotWidget.new (w_width * 2), w_height, self
+    @esense_plot = EsensePlotWidget.new w_width, w_height, self
+
+    grid = Qt::GridLayout.new
+    grid.setSpacing 2
+    grid.setMargin 2
+    grid.addWidget(@wave_plot, 0, 0, 1, 3)  # row, col, rowspan, colspan
+    grid.addWidget(@asic_plot, 1, 0, 1, 2)
+    grid.addWidget(@esense_plot, 1, 2)
+    setLayout grid
+
+    self.windowTitle = "Mindset"
+
+    @timer = MindsetTimer.new(self)
+  end
+
+  def keyPressEvent(event)
+    case event.key
+      when Qt::Key_Q
+        $qApp.quit()
+        return
+    end
+  end
+
+  #def paintEvent(ev)
+  #QPainter painter(this);
+  #std::vector<QPoint> points;
+  #// Fill points with the points
+  #painter.drawPolyLine(points.data(), static_cast<int>(points.size()));
+  #end
+
+  def timerEvent
+    pkts = @conn.read_packet
+    [@wave_plot, @asic_plot, @esense_plot].each do |w|
+      w.add_data pkts
+      w.plot_data
+    end
+
+    #points = pkts.inject([]) { |arr, p| arr << p[:wave] if p[:wave]; arr }
+    #points.each_with_index { |x,idx| @scene.addEllipse( idx * 10, x % 200, 1, 1 ) }
+    
+    #px = w.getBackBuf
+    #px.fill(color)
+    #w.update
+    #p = Qt::Painter.new
+    #p.begin px
+    #p.setWindow(0,0, TRIALTIME, NUMMF)
+    #p.setViewport(0, 0, buf->width(), buf->height())
+    #p.setPen(Qt::white)
+    #p.drawPoint(i, j)
+    #p.setPen(Qt::blue) || p.setPen(Qt::black)
+    #p.scale((float)buf->width()/5000, (float)buf->height()/NUMMF);
+    #QRect updateArea(p.worldTransform().mapRect(QRect(i, 0, 1, NUMMF)));
+    #p.end();
+    #w.update(updateArea)
+=begin
+    if @row == WIN_Y
+      @timer.stopTimer
+      return
+    end
+    WIN_X.times do |x|
+      @scene.addItem( Qt::GraphicsEllipseItem.new(x,@row,1,1) )
+      #@scene.addItem( Qt::GraphicsEllipseItem.new(x,@row,1,1) ) \
+      #       if @data.color?(x, @row)
+    end
+    @row += 1
+=end
+  end
+
+end
+
+# ----------------------------------------------------------------------
+class MindsetApp < Qt::Application
+
+  def initialize( args )
+    super(args)
+    options = get_options(args)
+    connect(options)
+    show_window(options)
+  end
+
+  def connect(options)
+    if (options.use_device)
+      @conn = Mindset::Connection.new(options.device)
+    else
+      data = JSON.parse(File.read(options.data_file),
+                        :symbolize_names => true)
+      @conn = Mindset::LoopbackConnection.new(data)
+    end
+  end
+
+  private
+
+  def show_window(options)
+    rect = desktop.screenGeometry
+    win_size = Qt::Size.new (rect.width - 20), (rect.height - 50)
+    @win = MindsetWindow.new(@conn, win_size)
+    @win.show()
+  end
+
+  def get_options(args)
+    options = OpenStruct.new
+
+    options.use_device = true
+    options.data_file = nil
+    options.device = Mindset::Connection::SERIAL_PORT
+
+    opts = OptionParser.new do |opts|
+      opts.banner = "Usage: #{File.basename $0} [-h] [-f filename] [DEVICE]"
+      opts.separator "Note: DEVICE defaults to #{options.device}"
+      opts.separator ""
+      opts.separator "Options:"
+
+      opts.on('-f', '--input-file path', 'File containing JSON EEG data') {|str|
+        options.use_device = false
+        options.data_file = str
+      }
+      opts.on_tail('-h', '--help', 'Show help screen') { puts opts; exit 1 }
+    end
+
+    opts.parse! args
+
+    options.device = args.shift if (! args.empty?)
+    options
+  end
+end
+
+if __FILE__ == $0
+  app = MindsetApp.new(ARGV)
+  app.exec()
+end

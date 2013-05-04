@@ -81,6 +81,12 @@ packet.
       Packet.new.decode(excode, code, value, verbose)
     end
 
+    def self.factory(name, value)
+      pkt = self.new
+      pkt[name.to_sym] = value
+      pkt
+    end
+
     def decode(excode, code, value, verbose=nil)
       # note: currently, excode is ignored
       case code
@@ -152,6 +158,39 @@ established.
       super @device, BAUD_RATE
     end
 
+=begin rdoc
+Return an Array of Packet objects.
+Note: this will perform a blocking read on the serial device.
+=end
+    def read_packet(verbose=false)
+      wait_for_byte(BT_SYNC, 100)
+      wait_for_byte(BT_SYNC, 100)
+
+      plen = read_n_bytes(1).first
+      if plen >= BT_SYNC
+        $stderr.puts "Invalid packet size: #{plen} bytes" if verbose
+        return []
+      end
+
+      buf = read_n_bytes(plen)
+
+      buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
+      buf_cs = ~buf_cs & 0xFF
+      checksum = read_n_bytes(1).first
+      if buf_cs != checksum
+        $stderr.puts "Packet #{buf_cs} != checksum #{checkum}" if verbose
+        return []
+      end
+
+      Packet.parse buf, verbose
+    end
+
+    def disconnect
+      self.close
+    end
+
+    private
+
     def read_n_bytes(n)
       bytes = []
       n.times { bytes << self.readbyte }
@@ -192,32 +231,67 @@ established.
 
       raise TimeoutError if counter >= max_counter
     end
+  end
 
+=begin rdoc
+A fake Mindset connection which just replays data previously captured (and
+serialized to JSON).
+This is used to provide a uniform interface for displaying either realtime or
+captured EEG data.
+Note: This expects a PacketStore object to be stored in @data before read_packet
+is called.
+=end
+  class LoopbackConnection
+    attr_accessor :data
+
+    def initialize(data=nil)
+      @data = data
+      @counter = 0
+      @wave_idx = 0
+      @esense_idx = 0
+    end
+
+=begin rdoc
+Simulate a read of the Mindset device by returning an Array of Packet objects.
+This assumes it will be called 8 times a second.
+
+According to the MDT, Mindset packets are sent at the following intervals:
+  1 packet per second: eSense, ASIC EEG, POOR_SIGNAL
+  512 packets per second: RAW
+
+Each read will therefore return 64 RAW packets. Every eighth read will also 
+return 1 eSense, ASIC_EEG, and POOR_SIGNAL packet.
+=end
     def read_packet(verbose=false)
-      wait_for_byte(BT_SYNC, 100)
-      wait_for_byte(BT_SYNC, 100)
+      packets = @data[:wave][@wave_idx, 64].map { |val| 
+                Packet.factory(:wave, val)  }
+      @wave_idx += 64
+      @wave_idx = 0 if @wave_idx >= @data[:wave].count
 
-      plen = read_n_bytes(1).first
-      if plen >= BT_SYNC
-        $stderr.puts "Invalid packet size: #{plen} bytes" if verbose
-        return []
+      if @counter == 7
+        packets << Packet.factory(:delta, @data[:delta][@esense_idx])
+        packets << Packet.factory(:theta, @data[:theta][@esense_idx])
+        packets << Packet.factory(:lo_alpha, @data[:lo_alpha][@esense_idx])
+        packets << Packet.factory(:hi_alpha, @data[:hi_alpha][@esense_idx])
+        packets << Packet.factory(:lo_beta, @data[:lo_beta][@esense_idx])
+        packets << Packet.factory(:hi_beta, @data[:hi_beta][@esense_idx])
+        packets << Packet.factory(:lo_gamma, @data[:lo_gamma][@esense_idx])
+        packets << Packet.factory(:mid_gamma, @data[:mid_gamma][@esense_idx])
+        packets << Packet.factory(:signal_quality, 
+                                  @data[:signal_quality][@esense_idx])
+        packets << Packet.factory(:attention, @data[:attention][@esense_idx])
+        packets << Packet.factory(:meditation, @data[:meditation][@esense_idx])
+        packets << Packet.factory(:blink, @data[:blink][@esense_idx])
+        @esense_idx += 1
+        @esense_idx = 0 if @esense_idx >= @data[:delta].count
       end
 
-      buf = read_n_bytes(plen)
-
-      buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
-      buf_cs = ~buf_cs & 0xFF
-      checksum = read_n_bytes(1).first
-      if buf_cs != checksum
-        $stderr.puts "Packet #{buf_cs} != checksum #{checkum}" if verbose
-        return []
-      end
-
-      Packet.parse buf, verbose
+      @counter = (@counter + 1) % 8
+      packets
     end
 
     def disconnect
-      self.close
+      @data = {}
     end
   end
 
