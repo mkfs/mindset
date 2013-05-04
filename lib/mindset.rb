@@ -3,8 +3,6 @@
 # (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset                 
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
-require 'thread'
-
 require 'rubygems'                    # gem install serialport
 require 'serialport'
 require 'json/ext'
@@ -158,9 +156,8 @@ established.
     def initialize(device=nil)
       @device = device || SERIAL_PORT
       super @device, BAUD_RATE
-      #@mutex = Mutex.new
       # Note: Mutex causes crashes when used with qtbindings
-      @locked = true
+      @locked = false
     end
 
 =begin rdoc
@@ -170,43 +167,18 @@ Note: this will perform a blocking read on the serial device.
     def read_packet(verbose=false)
       return [] if @locked
       @locked = true
-      #return [] if @mutex.locked?
-      #begin
-      #  @mutex.lock
-      #rescue ThreadError
-      #  return []
-      #end
 
-      if not wait_for_byte(BT_SYNC)
-        @locked = false
-        #@mutex.unlock
-        return []
+      pkts = []
+      if wait_for_byte(BT_SYNC) and wait_for_byte(BT_SYNC)
+        plen = self.getbyte
+        if plen and plen < BT_SYNC
+          pkts = read_payload(plen, verbose)
+        else
+          $stderr.puts "Invalid packet size: #{plen} bytes" if verbose
+        end
       end
-      wait_for_byte(BT_SYNC)
-
-      plen = self.getbyte
-      if (! plen) or plen >= BT_SYNC
-        @locked = false
-        #@mutex.unlock
-        $stderr.puts "Invalid packet size: #{plen} bytes" if verbose
-        return []
-      end
-
-      str = self.read(plen)
-      buf = str ? str.bytes.to_a : []
-
-      checksum = self.getbyte
       @locked = false
-      #@mutex.unlock
-
-      buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
-      buf_cs = ~buf_cs & 0xFF
-      if (! checksum) or buf_cs != checksum
-        $stderr.puts "Packet #{buf_cs} != checksum #{checkum}" if verbose
-        return []
-      end
-
-      Packet.parse buf, verbose
+      pkts
     end
 
     def disconnect
@@ -215,13 +187,23 @@ Note: this will perform a blocking read on the serial device.
 
     private
 
-    def read_n_bytes(n)
-      bytes = []
-      n.times { bytes << self.getbyte }
-      bytes
+    def read_payload(plen, verbose=false)
+      str = self.read(plen)
+      buf = str ? str.bytes.to_a : []
+
+      checksum = self.getbyte
+
+      buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
+      buf_cs = ~buf_cs & 0xFF
+      if (! checksum) or buf_cs != checksum
+        $stderr.puts "Packet #{buf_cs} != checksum #{checkum}" if verbose
+        return []
+      end
+
+      pkts = Packet.parse buf, verbose
     end
 
-    def wait_for_byte(val, max_counter=100)
+    def wait_for_byte(val, max_counter=500)
       max_counter.times do 
         c = self.getbyte
         return true if (c == val)
