@@ -3,6 +3,8 @@
 # (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset                 
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
+require 'thread'
+
 require 'rubygems'                    # gem install serialport
 require 'serialport'
 require 'json/ext'
@@ -156,6 +158,9 @@ established.
     def initialize(device=nil)
       @device = device || SERIAL_PORT
       super @device, BAUD_RATE
+      #@mutex = Mutex.new
+      # Note: Mutex causes crashes when used with qtbindings
+      @locked = true
     end
 
 =begin rdoc
@@ -163,11 +168,26 @@ Return an Array of Packet objects.
 Note: this will perform a blocking read on the serial device.
 =end
     def read_packet(verbose=false)
-      return [] if not wait_for_byte(BT_SYNC)
+      return [] if @locked
+      @locked = true
+      #return [] if @mutex.locked?
+      #begin
+      #  @mutex.lock
+      #rescue ThreadError
+      #  return []
+      #end
+
+      if not wait_for_byte(BT_SYNC)
+        @locked = false
+        #@mutex.unlock
+        return []
+      end
       wait_for_byte(BT_SYNC)
 
       plen = self.getbyte
       if (! plen) or plen >= BT_SYNC
+        @locked = false
+        #@mutex.unlock
         $stderr.puts "Invalid packet size: #{plen} bytes" if verbose
         return []
       end
@@ -175,9 +195,12 @@ Note: this will perform a blocking read on the serial device.
       str = self.read(plen)
       buf = str ? str.bytes.to_a : []
 
+      checksum = self.getbyte
+      @locked = false
+      #@mutex.unlock
+
       buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
       buf_cs = ~buf_cs & 0xFF
-      checksum = self.getbyte
       if (! checksum) or buf_cs != checksum
         $stderr.puts "Packet #{buf_cs} != checksum #{checkum}" if verbose
         return []
