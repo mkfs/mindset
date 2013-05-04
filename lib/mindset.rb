@@ -163,21 +163,22 @@ Return an Array of Packet objects.
 Note: this will perform a blocking read on the serial device.
 =end
     def read_packet(verbose=false)
-      wait_for_byte(BT_SYNC, 100)
-      wait_for_byte(BT_SYNC, 100)
+      return [] if not wait_for_byte(BT_SYNC)
+      wait_for_byte(BT_SYNC)
 
-      plen = read_n_bytes(1).first
-      if plen >= BT_SYNC
+      plen = self.getbyte
+      if (! plen) or plen >= BT_SYNC
         $stderr.puts "Invalid packet size: #{plen} bytes" if verbose
         return []
       end
 
-      buf = read_n_bytes(plen)
+      str = self.read(plen)
+      buf = str ? str.bytes.to_a : []
 
       buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
       buf_cs = ~buf_cs & 0xFF
-      checksum = read_n_bytes(1).first
-      if buf_cs != checksum
+      checksum = self.getbyte
+      if (! checksum) or buf_cs != checksum
         $stderr.puts "Packet #{buf_cs} != checksum #{checkum}" if verbose
         return []
       end
@@ -193,43 +194,16 @@ Note: this will perform a blocking read on the serial device.
 
     def read_n_bytes(n)
       bytes = []
-      n.times { bytes << self.readbyte }
+      n.times { bytes << self.getbyte }
       bytes
     end
 
-    def while_not_byte(val, &block)
-      cont = true
-      while cont
-        c = self.readbyte
-        break if c == val
-        cont = yield c
+    def wait_for_byte(val, max_counter=100)
+      max_counter.times do 
+        c = self.getbyte
+        return true if (c == val)
       end
-    end
-
-    def wait_for_not_byte(val, max_counter=6000)
-      counter = 0
-      c = nil
-      while counter < max_counter
-        c = self.readbyte
-        break if (c != val)
-        counter += 1
-        sleep 0.1
-      end
-
-      raise TimeoutError if counter >= max_counter
-      c
-    end
-
-    def wait_for_byte(val, max_counter=6000)
-      counter = 0
-      while counter < max_counter
-        c = self.readbyte
-        break if (c == val)
-        counter += 1
-        sleep 0.1
-      end
-
-      raise TimeoutError if counter >= max_counter
+      false
     end
   end
 

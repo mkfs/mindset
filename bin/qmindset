@@ -7,8 +7,9 @@ require 'optparse'
 require 'Qt4'
 
 require 'mindset'
-# TODO: connection should have its own thread
-# TODO: record data. have event buttons (allow user to enter string). -o ?
+# TODO: connection should have its own thread?
+# TODO: record data : reord/stop record button. save-button.
+# TODO: event buttons, with textbox for event label.
  
 # ----------------------------------------------------------------------
 =begin rdoc
@@ -33,7 +34,9 @@ class MindsetTimer < Qt::Object
 end
 
 # ----------------------------------------------------------------------
-
+=begin rdoc
+Basic widget for plotting data
+=end
 class PlotWidget < Qt::Widget
 
   def initialize(w_width, w_height, parent)
@@ -56,11 +59,26 @@ class PlotWidget < Qt::Widget
     set_background
   end
 
+=begin rdoc
+Add packets from Array of Packet objects. This will extract only the
+packets which have data relevant to the plot.
+=end
   def add_data(packets)
     @buffer.keys.each { |k| @buffer[k].concat extract_packets(packets, k) }
     trim_data
   end
 
+=begin rdoc
+Extract data from relevant packets into an Array of values.
+=end
+  def extract_packets(packets, name)
+    packets.inject([]) { |arr, p| arr << p[name] if p[name]; arr }
+  end
+
+=begin rdoc
+Limit the number of stored datapoints to just enough for display. This allows
+the display to start at buffer offset zero, which simplifies things.
+=end
   def trim_data
     @buffer.keys.each do |k| 
       diff = @buffer[k].count - (1.0 * @scene_width / @x_mul).ceil.to_i
@@ -68,14 +86,19 @@ class PlotWidget < Qt::Widget
     end
   end
 
-
+=begin rdoc
+Plot the data stored in the buffer.
+=end
   def plot_data
     clear_lines
     @buffer.keys.each { |k| plot_data_line(k, @buffer[k]) }
   end
 
+=begin rdoc
+Plot datapoints in Array using QBrush object allocated for 'sym'.
+=end
   def plot_data_line(sym, data)
-    return if data.empty?
+    return if data.empty? or data.count == 1
     set_delta_and_offset(data)
 
     ppath = Qt::PainterPath.new(Qt::PointF.new 0, scale_y(data[0]))
@@ -86,21 +109,12 @@ class PlotWidget < Qt::Widget
     @items << @scene.addPath(ppath, @pens[sym])
   end
 
+=begin rdoc
+Remove all previously-plotted lines from the plot.
+=end
   def clear_lines
     @items.each { |item| @scene.removeItem item }
     @items.clear
-  end
-
-  def add_datapoint(sym, x, y)
-    @scene.addEllipse( x, scale_y(y), 1, 1)
-  end
-
-  def scale_y(val)
-    ((val + @offset) * @delta).to_i
-  end
-
-  def extract_packets(packets, name)
-    packets.inject([]) { |arr, p| arr << p[name] if p[name]; arr }
   end
 
   def resizeEvent(ev)
@@ -108,6 +122,10 @@ class PlotWidget < Qt::Widget
   end
 
   private
+
+  def scale_y(val)
+    ((val + @offset) * @delta).to_i
+  end
 
   def set_delta_and_offset(data)
     min = data.min
@@ -154,16 +172,21 @@ class PlotWidget < Qt::Widget
 
   def set_background
     @scene.backgroundBrush = Qt::Color.new(Qt::black)
+    # this breaks for some reason
     #@scene.foregroundBrush = Qt::Color.new(Qt::white)
   end
 end
 
 # ----------------------------------------------------------------------
+=begin rdoc
+Widget for plotting RAW wave data.
+=end
 class WavePlotWidget < PlotWidget
   def initialize(width, height, parent)
     @x_mul = 2
     @buffer = []
     super
+    setToolTip('Raw EEG Data')
   end
 
   def add_data(packets)
@@ -183,6 +206,9 @@ class WavePlotWidget < PlotWidget
 end
 
 # ----------------------------------------------------------------------
+=begin rdoc
+Widget for plotting ASIC EEG brainwave data.
+=end
 class AsicPlotWidget < PlotWidget
   def initialize(width, height, parent)
     @x_mul = 50
@@ -197,10 +223,14 @@ class AsicPlotWidget < PlotWidget
       :mid_gamma => []
     }
     super
+    setToolTip("ASIC EEG Brainwave data (w=delta, y=theta, r=alpha, g=beta, b=gamma)")
   end
 end
 
 # ----------------------------------------------------------------------
+=begin rdoc
+Widget for plotting Thinkgear eSENSE data.
+=end
 class EsensePlotWidget < PlotWidget
   def initialize(width, height, parent)
     @x_mul = 8
@@ -209,11 +239,13 @@ class EsensePlotWidget < PlotWidget
       :meditation => []
     }
     super
+    setToolTip("eSENSE (r=attention, b=meditation)")
   end
 end
 
 # ----------------------------------------------------------------------
 =begin rdoc
+Main window. This is just a simple container for the other windows.
 =end
 class MindsetWindow < Qt::Widget
   attr_reader :timer
@@ -251,54 +283,20 @@ class MindsetWindow < Qt::Widget
     end
   end
 
-  #def paintEvent(ev)
-  #QPainter painter(this);
-  #std::vector<QPoint> points;
-  #// Fill points with the points
-  #painter.drawPolyLine(points.data(), static_cast<int>(points.size()));
-  #end
-
   def timerEvent
     pkts = @conn.read_packet
     [@wave_plot, @asic_plot, @esense_plot].each do |w|
       w.add_data pkts
       w.plot_data
     end
-
-    #points = pkts.inject([]) { |arr, p| arr << p[:wave] if p[:wave]; arr }
-    #points.each_with_index { |x,idx| @scene.addEllipse( idx * 10, x % 200, 1, 1 ) }
-    
-    #px = w.getBackBuf
-    #px.fill(color)
-    #w.update
-    #p = Qt::Painter.new
-    #p.begin px
-    #p.setWindow(0,0, TRIALTIME, NUMMF)
-    #p.setViewport(0, 0, buf->width(), buf->height())
-    #p.setPen(Qt::white)
-    #p.drawPoint(i, j)
-    #p.setPen(Qt::blue) || p.setPen(Qt::black)
-    #p.scale((float)buf->width()/5000, (float)buf->height()/NUMMF);
-    #QRect updateArea(p.worldTransform().mapRect(QRect(i, 0, 1, NUMMF)));
-    #p.end();
-    #w.update(updateArea)
-=begin
-    if @row == WIN_Y
-      @timer.stopTimer
-      return
-    end
-    WIN_X.times do |x|
-      @scene.addItem( Qt::GraphicsEllipseItem.new(x,@row,1,1) )
-      #@scene.addItem( Qt::GraphicsEllipseItem.new(x,@row,1,1) ) \
-      #       if @data.color?(x, @row)
-    end
-    @row += 1
-=end
   end
 
 end
 
 # ----------------------------------------------------------------------
+=begin rdoc
+Qt Application for managing Main Window.
+=end
 class MindsetApp < Qt::Application
 
   def initialize( args )
@@ -354,6 +352,7 @@ class MindsetApp < Qt::Application
   end
 end
 
+# ----------------------------------------------------------------------
 if __FILE__ == $0
   app = MindsetApp.new(ARGV)
   app.exec()
