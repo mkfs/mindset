@@ -4,8 +4,8 @@
 require 'rdoc/task'
 require 'rubygems/package_task'
 
-MOD_NAME    = 'mindset'
-MOD_VERSION = '0.2'
+MOD_NAME    = 'hybridgroup-mindset'
+MOD_VERSION = '0.3'
 
 # ---------------------------------------------------------------------- 
 # Default build target(s)
@@ -39,7 +39,7 @@ them to STDOUT in JSON on exit.'
   spec.license = "BSD"
 
   spec.required_ruby_version = '>= 1.9.2'
-  spec.requirements = ["'json' gem >= 1.5.0", "'serialport' gem >= 1.1.0"]
+  spec.requirements = ["'json' gem >= 1.5.0"]
 
   spec.files = MOD_FILES
 end
