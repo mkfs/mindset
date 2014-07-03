@@ -1,16 +1,17 @@
 #!/usr/bin/env ruby
 # Ruby module for reading data from a Neurosky Mindset.
-# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset                 
+# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
-require 'rubygems'                    # gem install serialport
+require 'rubygems'
 require 'json/ext'
+require 'rubyserial'
 
 # ----------------------------------------------------------------------
 module Mindset
 
 =begin rdoc
-Collection of captured Packet objects. Packets are collected by type. The 
+Collection of captured Packet objects. Packets are collected by type. The
 start and end timestamps are saved.
 =end
   class PacketStore < Hash
@@ -141,7 +142,7 @@ packet.
 
   # ----------------------------------------------------------------------
 =begin rdoc
-A connection to a Mindset device. This wraps the SerialPort connection to the
+A connection to a Mindset device. This wraps the Serial connection to the
 device. Device must already be paired and have a serial bluetooth connection
 established.
 =end
@@ -156,7 +157,7 @@ established.
       if device.is_a?(String)
         initialize_serialport device
       elsif device.nil?
-        initialize_serialport SERIAL_PORT 
+        initialize_serialport SERIAL_PORT
       else
         @sp = device
       end
@@ -166,15 +167,7 @@ established.
 
 
     def initialize_serialport dev
-      require 'serialport'
-      @sp = SerialPort.new dev, BAUD_RATE, 8, 1, SerialPort::NONE
-      if is_windows?
-        @sp.read_timeout=1000
-        @sp.write_timeout=0
-        @sp.initial_byte_offset=5
-      end
-    rescue LoadError
-      puts "Please 'gem install hybridgroup-serialport' for serial port support."
+      @sp = Serial.new dev, BAUD_RATE
     end
 
 =begin rdoc

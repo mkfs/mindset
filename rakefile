@@ -41,6 +41,8 @@ them to STDOUT in JSON on exit.'
   spec.required_ruby_version = '>= 1.9.2'
   spec.requirements = ["'json' gem >= 1.5.0"]
 
+  spec.add_runtime_dependency 'rubyserial'
+
   spec.files = MOD_FILES
 end
 
