@@ -1,17 +1,17 @@
 #!/usr/bin/env ruby
 # Ruby module for reading data from a Neurosky Mindset.
-# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset                 
+# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
-require 'rubygems'                    # gem install serialport
-require 'serialport'
+require 'rubygems'
 require 'json/ext'
+require 'rubyserial'
 
 # ----------------------------------------------------------------------
 module Mindset
 
 =begin rdoc
-Collection of captured Packet objects. Packets are collected by type. The 
+Collection of captured Packet objects. Packets are collected by type. The
 start and end timestamps are saved.
 =end
   class PacketStore < Hash
@@ -142,11 +142,11 @@ packet.
 
   # ----------------------------------------------------------------------
 =begin rdoc
-A connection to a Mindset device. This wraps the SerialPort connection to the
+A connection to a Mindset device. This wraps the Serial connection to the
 device. Device must already be paired and have a serial bluetooth connection
 established.
 =end
-  class Connection < SerialPort
+  class Connection
     SERIAL_PORT = "/dev/rfcomm0"
     BAUD_RATE = 57600
     BT_SYNC = 0xAA
@@ -154,10 +154,20 @@ established.
     class TimeoutError < RuntimeError; end
 
     def initialize(device=nil)
-      @device = device || SERIAL_PORT
-      super @device, BAUD_RATE
+      if device.is_a?(String)
+        initialize_serialport device
+      elsif device.nil?
+        initialize_serialport SERIAL_PORT
+      else
+        @sp = device
+      end
       # Note: Mutex causes crashes when used with qtbindings
       @locked = false
+    end
+
+
+    def initialize_serialport dev
+      @sp = Serial.new dev, BAUD_RATE
     end
 
 =begin rdoc
@@ -170,7 +180,7 @@ Note: this will perform a blocking read on the serial device.
 
       pkts = []
       if wait_for_byte(BT_SYNC) and wait_for_byte(BT_SYNC)
-        plen = self.getbyte
+        plen = @sp.getbyte
         if plen and plen < BT_SYNC
           pkts = read_payload(plen, verbose)
         else
@@ -182,16 +192,16 @@ Note: this will perform a blocking read on the serial device.
     end
 
     def disconnect
-      self.close
+      @sp.close
     end
 
     private
 
     def read_payload(plen, verbose=false)
-      str = self.read(plen)
+      str = @sp.read(plen)
       buf = str ? str.bytes.to_a : []
 
-      checksum = self.getbyte
+      checksum = @sp.getbyte
 
       buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
       buf_cs = ~buf_cs & 0xFF
@@ -205,11 +215,20 @@ Note: this will perform a blocking read on the serial device.
 
     def wait_for_byte(val, max_counter=500)
       max_counter.times do 
-        c = self.getbyte
+        c = @sp.getbyte
         return true if (c == val)
       end
       false
     end
+
+    def is_windows?
+      os = RUBY_PLATFORM.split("-")[1]
+      if (os == 'mswin' or os == 'bccwin' or os == 'mingw' or os == 'mingw32')
+        true
+      else
+        false
+      end
+    end    
   end
 
 =begin rdoc
