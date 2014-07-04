@@ -5,7 +5,7 @@ require 'rdoc/task'
 require 'rubygems/package_task'
 
 MOD_NAME    = 'hybridgroup-mindset'
-MOD_VERSION = '0.3'
+MOD_VERSION = '0.4'
 
 # ---------------------------------------------------------------------- 
 # Default build target(s)
