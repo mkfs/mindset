@@ -1,10 +1,15 @@
 #!/usr/bin/env ruby
 # :title: Mindset::Connection
+# = Mindset::Connection
 # (c) Copyright 2014 mkfs@github http://github.com/mkfs/mindset                 
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
+require 'thread'
+
 require 'rubygems'                    # gem install serialport
 require 'serialport'
+
+#require 'mindsep/packet'
 
 module Mindset
 
@@ -21,12 +26,51 @@ established.
 
     class TimeoutError < RuntimeError; end
 
+=begin rdoc
+Return a Mindset::Connection object for device.
+If a block is provided, this yields the Connection object, then disconnects it
+when the block returns.
+=end
+    def self.connect(device, verbose=false, &block)
+      begin
+        conn = self.new device, verbose
+
+        if block_given?
+          yield conn
+          conn.disconnect
+        else
+          return conn
+        end
+
+      rescue TypeError => e
+        $stderr.puts "ERROR: Could not connect to #{device}: #{e.message}"
+      end
+      nil
+    end
+
     def initialize(device=nil, verbose=false)
       @device = device || SERIAL_PORT
       @verbose = verbose
 
+      @semaphore = Mutex.new
+
       $stderr.puts "CONNECT #{device}, #{BAUD_RATE}" if @verbose
       super @device, BAUD_RATE
+      @connected = true
+    end
+
+=begin rdoc
+Disconnect from device
+=end
+    def disconnect
+      semaphore.synchronize { self.close; @connected = false }
+    end
+
+=begin rdoc
+Return true if serial port is connected.
+=end
+    def connected?
+      semaphore.synchronize { @connected }
     end
 
 =begin rdoc
@@ -36,20 +80,17 @@ Note: this will perform a blocking read on the serial device.
     def read_packet
 
       pkts = []
-      if wait_for_byte(BT_SYNC) and wait_for_byte(BT_SYNC)
-        plen = self.getbyte
-        if plen and plen < BT_SYNC
-          pkts = read_payload(plen)
-        else
-          $stderr.puts "Invalid packet size: #{plen} bytes" if @verbose
+      semaphore.synchronize {
+        if wait_for_byte(BT_SYNC) and wait_for_byte(BT_SYNC)
+          plen = self.getbyte
+          if plen and plen < BT_SYNC
+            pkts = read_payload(plen)
+          else
+            $stderr.puts "Invalid packet size: #{plen} bytes" if @verbose
+          end
         end
-      end
-
+      }
       pkts
-    end
-
-    def disconnect
-      self.close
     end
 
     private
@@ -76,28 +117,6 @@ Note: this will perform a blocking read on the serial device.
         return true if (c == val)
       end
       false
-    end
-
-=begin rdoc
-Return a Mindset::Connection object for device.
-If a block is provided, this yields the Connection object, then disconnects it
-when the block returns.
-=end
-    def self.connect(device, verbose=false, &block)
-      begin
-        conn = self.new device, verbose
-
-        if block_given?
-          yield conn
-          conn.disconnect
-        else
-          return conn
-        end
-
-      rescue TypeError => e
-        $stderr.puts "ERROR: Could not connect to #{device}: #{e.message}"
-      end
-      nil
     end
 
   end

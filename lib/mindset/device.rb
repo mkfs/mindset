@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# :title: Mindset::Device
+# = Mindset::Device
 # DRb Object that manages a Neurosky Mindset 
 # (c) Copyright 2014 mkfs@github http://github.com/mkfs/mindset                 
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
@@ -45,6 +47,9 @@ Disconnect from the Bluetooth serial device
     def disconnect
     end
 
+    def connected?
+    end
+
     # ----------------------------------------------------------------------
     # DRB Sevice
     
@@ -59,7 +64,7 @@ This returns a the URI to the DRb service for the Mindsky::Device object.
       pipe_r, pipe_w = IO.pipe
       pid = fork do
         pipe_r.close
-        uri = start_service(self.new, pipe_w)
+        start_service(self.new, pipe_w)
       end
 
       pipe_w.close
@@ -69,10 +74,18 @@ This returns a the URI to the DRb service for the Mindsky::Device object.
 
       Process.detach(pid)
 
-      connect_or_die uri
+      obj = connect_or_die uri
 
       $stderr.puts "Mindset::Device on #{uri} PID #{pid}" if $MINDSET_DEBUG
-      uri
+
+      return(obj)
+    end
+
+=begin rdoc
+Return true if service is running.
+=end
+    def running?
+      @uri
     end
 
 =begin rdoc
@@ -81,6 +94,7 @@ Stop the DRb service.
     def stop
       $stderr.puts "Stopping #{uri}..." if $MINDSET_DEBUG
       DRb.stop_service 
+      @uri = nil
       $stderr.puts "Mindset::Device stopped" if $MINDSET_DEBUG
     end
 
@@ -114,19 +128,21 @@ Start Drb service. This writes the URI of the service to one end of a pipe.
     private
 
     def self.connect_or_die(uri)
-      connected = false
+      obj = nil
 
       TIMEOUT.times do
         begin                                                                   
-          DRb::DRbObject.new_with_uri(uri).to_s
-          connected = true
+          obj = DRb::DRbObject.new_with_uri(uri)
+          obj.to_s  # method call to force connection
           break
         rescue DRb::DRbConnError
           sleep 0.1
         end
       end
 
-      raise DRbConnectionError.new("Cannot connect to #{uri}") if ! connected
+      raise DRbConnectionError.new("Cannot connect to #{uri}") if ! obj
+
+      obj
     end
   end
 
@@ -136,11 +152,10 @@ end
 # Sample client code:
 if __FILE__ == $0
 
-  uri = Mindset::Device.start
-  server = DRbObject.new(nil, uri)
+  server = Mindset::Device.start
 
   # ... do something here ...
-  sleep 10
+  sleep 5
 
   server.stop
 end
