@@ -2,7 +2,7 @@
 # Receive data from bluetooth and print to stdout. Assumes /dev/rfcomm0.
 # Usage: 
 #   mindset_capture.rb [-aehjqrvw] [-sn num] [DEVICE]
-# (c) Copyright 2013 mkfs@github http://github.com/mkfs/mindset                 
+# (c) Copyright 2014 mkfs@github http://github.com/mkfs/mindset                 
 # License: BSD http://www.freebsd.org/copyright/freebsd-license.html
 
 require 'ostruct'
@@ -29,16 +29,29 @@ def print_packets( packets, options )
 end
 
 def read_mindset_bt(options)
-  conn = Mindset.connect(options.device, options.verbose)
-  return if ! conn
+  $MINDSET_DEBUG = options.verbose
+
+  if ! File.exist? options.device
+    # don't even bother
+    $stderr.puts "Device '#{options.device}' does not exist"
+    return
+  end
+
+  server = Mindset::Device.start
+  server.connect(options.device)
+
+  if ! server.connected?
+    $stderr.puts "Could not connect to device! Stopping server."
+    server.stop
+    return
+  end
 
   h_pkt = Mindset::PacketStore.new
   num = 0
   cont = true
   while cont
     begin
-      packets = conn.read_packet(options.verbose).reject { |pkt| 
-                skip_packet? pkt, options }
+      packets = server.read_packet.reject { |pkt| skip_packet? pkt, options }
       num += packets.length
       if options.json
         store_packets( h_pkt, packets, options )
@@ -55,7 +68,8 @@ def read_mindset_bt(options)
     end
   end
 
-  conn.disconnect
+  server.disconnect
+  server.stop
 
   if options.json
     h_pkt[:end_ts] = Time.now

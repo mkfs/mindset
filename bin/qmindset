@@ -285,6 +285,8 @@ class MindsetWindow < Qt::Widget
 
   def timerEvent
     pkts = @conn.read_packet
+    return if (! pkts) or (pkts.empty?)
+
     [@wave_plot, @asic_plot, @esense_plot].each do |w|
       w.add_data pkts
       w.plot_data

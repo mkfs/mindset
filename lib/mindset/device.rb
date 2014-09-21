@@ -10,10 +10,10 @@ require 'drb'
 require 'rubygems'
 require 'json/ext'
 
-
 require 'mindset/connection'
 
 $MINDSET_DEBUG=true
+
 
 module Mindset
 
@@ -34,24 +34,43 @@ URI that the DRb service for this device is listening on.
     attr_accessor :uri
 
 =begin rdoc
+SerialPort connection to headset. This is a Mindset::Device object.
+=end
+    attr_reader :connection
+    alias :conn :connection
+
+=begin rdoc
 Connect to a Bluetooth serial device.
 =end
     def connect(device, &block)
-      @conn = Connection.connect(device || SERIAL_PORT, $MINDSET_DEBUG,
-                                 &block)
+      @connection = Connection.connect(device || SERIAL_PORT, $MINDSET_DEBUG,
+                                       &block)
     end
 
 =begin rdoc
 Disconnect from the Bluetooth serial device
 =end
     def disconnect
+      @connection.disconnect
+      @connection = nil
     end
 
+=begin rdoc
+Return true if serial port is connected to a headset
+=end
     def connected?
+      @connection && @connection.connected?
+    end
+
+=begin rdoc
+Wrapper that delegates to Connection#read_packet.
+=end
+    def read_packet
+      @connection && @connection.read_packet
     end
 
     # ----------------------------------------------------------------------
-    # DRB Sevice
+    # DRB Service
     
 =begin rdoc
 Start a DRb service for listening to a Neurosky Mindset device. The service
