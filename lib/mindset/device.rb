@@ -5,6 +5,12 @@
 
 require 'drb'
 
+require 'rubygems'
+require 'json/ext'
+
+
+require 'mindset/connection'
+
 $MINDSET_DEBUG=true
 
 module Mindset
@@ -18,6 +24,7 @@ DRb service which manages a Neurosky Mindset device.
 Timeout for connection attempt, in tenths of a second.
 =end
     TIMEOUT = 600
+    SERIAL_PORT = "/dev/rfcomm0"
 
 =begin rdoc
 URI that the DRb service for this device is listening on.
@@ -27,7 +34,9 @@ URI that the DRb service for this device is listening on.
 =begin rdoc
 Connect to a Bluetooth serial device.
 =end
-    def connect
+    def connect(device, &block)
+      @conn = Connection.connect(device || SERIAL_PORT, $MINDSET_DEBUG,
+                                 &block)
     end
 
 =begin rdoc
