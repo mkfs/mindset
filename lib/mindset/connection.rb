@@ -136,7 +136,7 @@ PacketStore object containing captured EEG data.
 =end
     attr_accessor :data
 
-    def initialize(data=nil, verboe=false)
+    def initialize(data=nil, verbose=false)
       @data = data
       @counter = 0
       @wave_idx = 0
