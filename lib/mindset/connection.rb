@@ -9,7 +9,7 @@ require 'thread'
 require 'rubygems'                    # gem install serialport
 require 'serialport'
 
-#require 'mindsep/packet'
+require 'mindset/packet'
 
 module Mindset
 
