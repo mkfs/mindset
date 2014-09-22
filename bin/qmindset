@@ -253,7 +253,7 @@ Main window. This is just a simple container for the other windows.
 class MindsetWindow < Qt::Widget
   slots 'event_button_clicked()', 'record_button_clicked()'
 
-  attr_reader :timer
+  attr_reader :timer, :packets
   attr_reader :wave_plot, :asic_plot, :esense_plot
   attr_reader :rec_btn, :event_btn, :event_text, :status_label
 
@@ -328,7 +328,12 @@ class MindsetWindow < Qt::Widget
 
   def event_button_clicked
     ts = Time.now
+
+    # FIXME: save event
+$stderr.puts "SAVING EVENTS NOT YET IMPLEMENTED"
+
     set_status "Event saved at #{ts.strftime '%H:%M:%S'}."
+
   end
 
   def record_button_clicked
@@ -337,12 +342,11 @@ class MindsetWindow < Qt::Widget
       save_recording
       @rec_btn.text = REC_LABEL
       @event_btn.enabled = false
-      set_status READY_STATUS
     else
       @recording = true
+      set_status "Recording."
       @rec_btn.text = STOP_LABEL
       @event_btn.enabled = true
-      set_status "Recording."
     end
   end
 
@@ -351,18 +355,36 @@ class MindsetWindow < Qt::Widget
   end
 
   def save_recording
-    # TODO: save dialog
+    ts = Time.now
+    @packets[:end_ts] = ts
+    fname = "MindsetEEG-#{ts.strftime('%Y%m%d-%H:%M:%S')}.json"
+    try_to_save = true
+    while try_to_save
+      path = Qt::FileDialog.getSaveFileName self, tr('Save data as...'),  
+                                            fname, tr('JSON data (*.json)')
+      if ! path
+        set_status "Data not saved! #{READY_STATUS}"
+        break
+      end
 
-    # TODO: write JSON file
+      begin
+        File.open(path, 'w') { |f| f.puts @packets.to_json }
+        set_status "Data saved to '#{path}' #{READY_STATUS}"
+        try_to_save = false
+      rescue Exception => e
+        $stderr.puts e.message
+      end
+    end
+
     init_recording_buffer
   end
 
   def init_recording_buffer
-    # TODO
+    @packets = Mindset::PacketStore.new
   end
 
   def append_recorded_data( pkts )
-    # TODO
+    pkts.each { |pkt| pkt.each { |k,v| @packets[k] << v } }
   end
 
   def cleanup
