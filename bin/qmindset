@@ -10,6 +10,7 @@ require 'json/ext'
 require 'Qt4'
 
 require 'mindset'
+
 # TODO: record data : reord/stop record button. save-button.
 # TODO: event buttons, with textbox for event label.
  
@@ -250,8 +251,15 @@ end
 Main window. This is just a simple container for the other windows.
 =end
 class MindsetWindow < Qt::Widget
+  slots 'event_button_clicked()', 'record_button_clicked()'
+
   attr_reader :timer
   attr_reader :wave_plot, :asic_plot, :esense_plot
+  attr_reader :rec_btn, :event_btn, :event_text, :status_label
+
+  REC_LABEL = 'REC' # U+25C9 	FISHEYE
+  STOP_LABEL = 'STOP' # U+25A0 	BLACK SQUARE
+  READY_STATUS = "Press 'q' to Quit."
 
   def initialize(conn, win_size=Qt::Size.new(800,600), parent=nil)
     super parent
@@ -263,17 +271,38 @@ class MindsetWindow < Qt::Widget
     @wave_plot = WavePlotWidget.new width - 4, w_height, self
     @asic_plot = AsicPlotWidget.new (w_width * 2), w_height, self
     @esense_plot = EsensePlotWidget.new w_width, w_height, self
+    @rec_btn = Qt::PushButton.new(REC_LABEL)
+    @event_btn = Qt::PushButton.new('Event')
+    @event_text = Qt::LineEdit.new('Unknown event')
+    @status_label = Qt::Label.new(READY_STATUS)
+
+    hbox = Qt::HBoxLayout.new
+    hbox.add_widget(@event_text)
+    hbox.add_widget(@event_btn)
+    hbox.addStretch 256
+    hbox.add_widget(@status_label)
+    hbox.addSpacing 64
+    hbox.add_widget(@rec_btn)
 
     grid = Qt::GridLayout.new
     grid.setSpacing 2
     grid.setMargin 2
-    grid.addWidget(@wave_plot, 0, 0, 1, 3)  # row, col, rowspan, colspan
-    grid.addWidget(@asic_plot, 1, 0, 1, 2)
-    grid.addWidget(@esense_plot, 1, 2)
+    grid.addWidget(@wave_plot, 0, 0, 2, 3)  # row, col, rowspan, colspan
+    grid.addWidget(@asic_plot, 2, 0, 1, 2)
+    grid.addWidget(@esense_plot, 2, 2)
+
+    grid.addLayout(hbox, 3, 0, 1, 3)
     setLayout grid
 
+    @event_btn.enabled = false
+    Qt::Object.connect(@event_btn, SIGNAL('clicked()'), 
+                       self, SLOT('event_button_clicked()'))
+    Qt::Object.connect(@rec_btn, SIGNAL('clicked()'), 
+                       self, SLOT('record_button_clicked()'))
     self.windowTitle = "Mindset"
 
+    @recording = false
+    init_recording_buffer
     @timer = MindsetTimer.new(self)
   end
 
@@ -289,16 +318,58 @@ class MindsetWindow < Qt::Widget
     pkts = @conn.read_packet
     return if (! pkts) or (pkts.empty?)
 
+    append_recorded_data( pkts ) if @recording
+
     [@wave_plot, @asic_plot, @esense_plot].each do |w|
       w.add_data pkts
       w.plot_data
     end
   end
 
-  def cleanup
-    @timer.stopTimer
+  def event_button_clicked
+    ts = Time.now
+    set_status "Event saved at #{ts.strftime '%H:%M:%S'}."
   end
 
+  def record_button_clicked
+    if @recording
+      @recording = false
+      save_recording
+      @rec_btn.text = REC_LABEL
+      @event_btn.enabled = false
+      set_status READY_STATUS
+    else
+      @recording = true
+      @rec_btn.text = STOP_LABEL
+      @event_btn.enabled = true
+      set_status "Recording."
+    end
+  end
+
+  def set_status(str)
+    @status_label.text = str
+  end
+
+  def save_recording
+    # TODO: save dialog
+
+    # TODO: write JSON file
+    init_recording_buffer
+  end
+
+  def init_recording_buffer
+    # TODO
+  end
+
+  def append_recorded_data( pkts )
+    # TODO
+  end
+
+  def cleanup
+    @timer.stopTimer
+    save_recording if @recording
+    @recording = false
+  end
 end
 
 # ----------------------------------------------------------------------
