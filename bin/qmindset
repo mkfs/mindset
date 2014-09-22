@@ -257,8 +257,8 @@ class MindsetWindow < Qt::Widget
   attr_reader :wave_plot, :asic_plot, :esense_plot
   attr_reader :rec_btn, :event_btn, :event_text, :status_label
 
-  REC_LABEL = 'REC' # U+25C9 	FISHEYE
-  STOP_LABEL = 'STOP' # U+25A0 	BLACK SQUARE
+  REC_LABEL = "\u25C9"
+  STOP_LABEL = "\u25A0" 
   READY_STATUS = "Press 'q' to Quit."
 
   def initialize(conn, win_size=Qt::Size.new(800,600), parent=nil)
@@ -272,8 +272,11 @@ class MindsetWindow < Qt::Widget
     @asic_plot = AsicPlotWidget.new (w_width * 2), w_height, self
     @esense_plot = EsensePlotWidget.new w_width, w_height, self
     @rec_btn = Qt::PushButton.new(REC_LABEL)
+    # FIXME: tooltip
     @event_btn = Qt::PushButton.new('Event')
+    # FIXME: tooltip
     @event_text = Qt::LineEdit.new('Unknown event')
+    # FIXME: tooltip
     @status_label = Qt::Label.new(READY_STATUS)
 
     hbox = Qt::HBoxLayout.new
@@ -341,11 +344,13 @@ $stderr.puts "SAVING EVENTS NOT YET IMPLEMENTED"
       @recording = false
       save_recording
       @rec_btn.text = REC_LABEL
+    # FIXME: tooltip
       @event_btn.enabled = false
     else
       @recording = true
       set_status "Recording."
       @rec_btn.text = STOP_LABEL
+    # FIXME: tooltip
       @event_btn.enabled = true
     end
   end
