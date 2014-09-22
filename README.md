@@ -33,11 +33,13 @@ To run from the repo, set the RUBYLIB to include the lib subdir:
 
     bash$ RUBYLIB=lib bin/mindset_capture -h
 
-The gem provides the Mindset module, which contains the Connection, Packet,
-and PacketStore objects.
+The gem provides the Mindset module, which contains the Device, Connection, 
+Packet, and PacketStore objects.
 
     require 'mindset'
-    Mindset.connect(options.device, options.verbose) do |conn|
+    
+    device = Mindset::Device.start
+    device.connect(options.device) do |conn|
       cont = true
       while cont
         begin
@@ -48,6 +50,7 @@ and PacketStore objects.
         end
       end
     end
+    device.stop
 
 Using a MindSet under Linux
 ===========================
