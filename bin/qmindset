@@ -4,10 +4,12 @@
 require 'ostruct'
 require 'optparse'
 
+require 'rubygems'
+require 'json/ext'
+
 require 'Qt4'
 
 require 'mindset'
-# TODO: connection should have its own thread?
 # TODO: record data : reord/stop record button. save-button.
 # TODO: event buttons, with textbox for event label.
  
@@ -293,6 +295,10 @@ class MindsetWindow < Qt::Widget
     end
   end
 
+  def cleanup
+    @timer.stopTimer
+  end
+
 end
 
 # ----------------------------------------------------------------------
@@ -300,31 +306,73 @@ end
 Qt Application for managing Main Window.
 =end
 class MindsetApp < Qt::Application
+  slots 'cleanup()'
+
+
+  attr_reader :server, :connection, :window
 
   def initialize( args )
     super(args)
+
     options = get_options(args)
+
+    Qt::Object.connect(self, SIGNAL('aboutToQuit()'), self, SLOT('cleanup()'))
+
+    ['INT', 'KILL', 'TERM', 'SEGV'].each { |sig| trap(sig) { cleanup } }
+
     connect(options)
+
     show_window(options)
+  end
+
+  def cleanup
+    @window && @window.cleanup
+    @connection && @connection.disconnect
+    @server && @server.stop
   end
 
   def connect(options)
     if (options.use_device)
-      @conn = Mindset::Connection.new(options.device)
+      connect_device(options)
     else
-      data = JSON.parse(File.read(options.data_file),
-                        :symbolize_names => true)
-      @conn = Mindset::LoopbackConnection.new(data)
+      connect_loopback(options)
+    end
+
+    if ! @connection
+      $stderr.puts "Unable to connect to headset"
+      cleanup
+      exit 3
     end
   end
 
   private
 
+  def connect_device(options)
+    if (! File.exist? options.device)
+      $stderr.puts "Device not found: #{options.device}"
+      exit 1
+    end
+
+    @server = Mindset::Device.start
+    if ! server
+      $stderr.puts "Unable to start Mindset Device service!"
+      emit :quit
+      exit 2
+    end
+    @server.connect(options.device)
+    @connection = @server.connection
+  end
+
+  def connect_loopback(options)
+    data = JSON.parse(File.read(options.data_file), :symbolize_names => true)
+    @connection = Mindset::LoopbackConnection.new(data)
+  end
+
   def show_window(options)
     rect = desktop.screenGeometry
     win_size = Qt::Size.new (rect.width - 20), (rect.height - 50)
-    @win = MindsetWindow.new(@conn, win_size)
-    @win.show()
+    @window = MindsetWindow.new(@connection, win_size)
+    @window.show()
   end
 
   def get_options(args)
