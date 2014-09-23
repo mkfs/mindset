@@ -33,7 +33,10 @@ when the block returns.
 =end
     def self.connect(device, verbose=false, &block)
       begin
-        conn = self.new device, verbose
+
+        conn = self.new device, BAUD_RATE
+        # Note: SerialPort does not call initialize()
+        conn.init_connection(device, verbose)
 
         if block_given?
           yield conn
@@ -48,14 +51,13 @@ when the block returns.
       nil
     end
 
-    def initialize(device=nil, verbose=false)
+    def init_connection(device, verbose)
+      @semaphore = Mutex.new
+
       @device = device || SERIAL_PORT
       @verbose = verbose
 
-      @semaphore = Mutex.new
-
       $stderr.puts "CONNECT #{device}, #{BAUD_RATE}" if @verbose
-      super @device, BAUD_RATE
       @connected = true
     end
 
@@ -63,14 +65,14 @@ when the block returns.
 Disconnect from device
 =end
     def disconnect
-      semaphore.synchronize { self.close; @connected = false }
+      @semaphore.synchronize { self.close; @connected = false }
     end
 
 =begin rdoc
 Return true if serial port is connected.
 =end
     def connected?
-      semaphore.synchronize { @connected }
+      @semaphore.synchronize { @connected }
     end
 
 =begin rdoc
@@ -80,7 +82,7 @@ Note: this will perform a blocking read on the serial device.
     def read_packet
 
       pkts = []
-      semaphore.synchronize {
+      @semaphore.synchronize {
         if wait_for_byte(BT_SYNC) and wait_for_byte(BT_SYNC)
           plen = self.getbyte
           if plen and plen < BT_SYNC

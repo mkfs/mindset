@@ -89,8 +89,8 @@ Linux Bluetooth daemon. According to bug 495696, it's BlueMan at fault:
 
 
 **CLI Tools**
-Connecting with the command line tools does not appear to work. At first, this
-seems to be a problem with
+Connecting with the command line tools does not appear to work. This
+seems to be a problem with rfcomm.
 
 _Pairing with BlueZ_
 

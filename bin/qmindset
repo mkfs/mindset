@@ -318,6 +318,7 @@ class MindsetWindow < Qt::Widget
   end
 
   def timerEvent
+    return if (! @conn.connected?)
     pkts = @conn.read_packet
     return if (! pkts) or (pkts.empty?)
 
