@@ -109,23 +109,25 @@ system Bluetooth daemon.
 
 _Connecting once Paired_
 
-This is the part that fails. The same behavior occurs when paired with bluez
-(no BlueMan software running), and when paired (but not connected) using
-BlueMan.
+Add an entry to /etc/bluetooth/rfcomm.conf:
+rfcomm0 {
+  bind yes;                                                               
+  device ##:##:##:##:##:##;
+  channel 3;
+  comment "MINDSET Device";
+}
 
-    bash$ sudo rfcomm connect /dev/rfcomm0 ##:##:##:##:##:## 1
-    ... waits for Ctrl-C ...
-    bash$ ./mindset-capture.rb
-    ... reads 11 bytes ("AT+BRSF=24\r"), then hits EOF
-    bash$ sudo rfcomm release 0
-    bash$ sudo rfcomm bind /dev/rfcomm0 ##:##:##:##:##:## 1
-    bash$ ./mindset-capture.rb
-    ... immediate EOF ...
-    bash$ sudo rfcomm release 0
+Now connect on the command-line with:
+    bash$ sudo rfcomm -A -E -M connect /dev/rfcomm0
+   
+Note: This does not release the device correctly when closed.
+ 
+To connect without using the config file:
 
-The bytes "AT+BRSF=24\r" are probably coming from rfcomm and not from the 
-MindSet, hence the subsequent EOF -- matching the behavior of connecting via
-`rfcomm bind`. This appears to be a problem in the socket opened by rfcomm.
+    bash$ sudo rfcomm -A -E -M connect /dev/rfcomm0 ##:##:##:##:##:## 3
+
+This seems to disconnect almost immediately. Probably yet-another-bug with
+rfcomm.
 
 
 **Neurosky Applications**

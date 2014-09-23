@@ -106,7 +106,7 @@ Note: this will perform a blocking read on the serial device.
       buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
       buf_cs = ~buf_cs & 0xFF
       if (! checksum) or buf_cs != checksum
-        $stderr.puts "Packet #{buf_cs} != checksum #{checkum}" if @verbose
+        $stderr.puts "Packet #{buf_cs} != checksum #{checksum}" if @verbose
         return []
       end
 
