@@ -11,9 +11,6 @@ require 'Qt4'
 
 require 'mindset'
 
-# TODO: record data : reord/stop record button. save-button.
-# TODO: event buttons, with textbox for event label.
- 
 # ----------------------------------------------------------------------
 =begin rdoc
 Timer that fires 8 times a second
@@ -318,8 +315,8 @@ class MindsetWindow < Qt::Widget
   end
 
   def timerEvent
-    return if (! @conn.connected?)
-    pkts = @conn.read_packet
+    return if (! @conn) || (! @conn.connected?)
+    pkts = @conn.read_packet_buffer
     return if (! pkts) or (pkts.empty?)
 
     append_recorded_data( pkts ) if @recording
@@ -417,7 +414,8 @@ class MindsetApp < Qt::Application
 
     Qt::Object.connect(self, SIGNAL('aboutToQuit()'), self, SLOT('cleanup()'))
 
-    ['INT', 'KILL', 'TERM', 'SEGV'].each { |sig| trap(sig) { cleanup } }
+    ['INT', 'KILL', 'TERM'].each { |sig| trap(sig) { cleanup } }
+    #['INT', 'KILL', 'TERM', 'SEGV'].each { |sig| trap(sig) { cleanup } }
 
     connect(options)
 
@@ -428,6 +426,7 @@ class MindsetApp < Qt::Application
     @window && @window.cleanup
     @connection && @connection.disconnect
     @server && @server.stop
+    @window = @connection = @server = nil
   end
 
   def connect(options)
@@ -453,13 +452,14 @@ class MindsetApp < Qt::Application
     end
 
     @server = Mindset::Device.start
-    if ! server
+    if ! @server
       $stderr.puts "Unable to start Mindset Device service!"
       emit :quit
       exit 2
     end
-    @server.connect(options.device)
-    @connection = @server.connection
+
+    @connection = server
+    Thread.new{ @server.connect(options.device) }
   end
 
   def connect_loopback(options)
@@ -504,5 +504,11 @@ end
 # ----------------------------------------------------------------------
 if __FILE__ == $0
   app = MindsetApp.new(ARGV)
-  app.exec()
+  begin
+    app.exec()
+  rescue SystemExit, Interrupt
+    $stderr.puts "Exiting..."
+    app.cleanup()
+    $stderr.puts "Done."
+  end
 end

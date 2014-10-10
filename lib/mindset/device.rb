@@ -45,6 +45,7 @@ Connect to a Bluetooth serial device.
     def connect(device, &block)
       @connection = Connection.connect(device || SERIAL_PORT, $MINDSET_DEBUG,
                                        &block)
+      @connection.start
     end
 
 =begin rdoc
@@ -65,8 +66,8 @@ Return true if serial port is connected to a headset
 =begin rdoc
 Wrapper that delegates to Connection#read_packet.
 =end
-    def read_packet
-      @connection && @connection.read_packet
+    def read_packet_buffer
+      @connection && @connection.read_packet_buffer
     end
 
     # ----------------------------------------------------------------------

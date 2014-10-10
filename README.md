@@ -118,16 +118,25 @@ rfcomm0 {
 }
 
 Now connect on the command-line with:
-    bash$ sudo rfcomm -A -E -M connect /dev/rfcomm0
+    bash$ sudo rfcomm connect /dev/rfcomm0
    
 Note: This does not release the device correctly when closed.
  
 To connect without using the config file:
 
-    bash$ sudo rfcomm -A -E -M connect /dev/rfcomm0 ##:##:##:##:##:## 3
+    bash$ sudo rfcomm connect /dev/rfcomm0 ##:##:##:##:##:## 3
 
 This seems to disconnect almost immediately. Probably yet-another-bug with
 rfcomm.
+
+Alternate Method:
+
+sudo bluez-test-device create ##:##:##:##:##:##
+sudo bluez-test-device trusted ##:##:##:##:##:## yes
+sudo bluez-test-serial ##:##:##:##:##:## 3
+ or 
+sudo bluez-test-serial ##:##:##:##:##:## spp
+
 
 
 **Neurosky Applications**

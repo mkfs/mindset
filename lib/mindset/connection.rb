@@ -52,27 +52,53 @@ when the block returns.
     end
 
     def init_connection(device, verbose)
-      @semaphore = Mutex.new
+      @running_mutex = Mutex.new
+      @buffer_mutex = Mutex.new
 
       @device = device || SERIAL_PORT
       @verbose = verbose
+      self.read_timeout = 100
 
       $stderr.puts "CONNECT #{device}, #{BAUD_RATE}" if @verbose
+
+      @buffer = []
       @connected = true
+      @running = false
     end
 
 =begin rdoc
 Disconnect from device
 =end
     def disconnect
-      @semaphore.synchronize { self.close; @connected = false }
+      stop
+      sleep 0.01
+      self.close
+      @connected = false
     end
 
 =begin rdoc
 Return true if serial port is connected.
 =end
     def connected?
-      @semaphore.synchronize { @connected }
+      @connected
+    end
+
+    def start
+      @running_mutex.synchronize { @running = true }
+
+      while running?
+        pkts = read_packet
+        @buffer_mutex.synchronize { @buffer.concat pkts } if (! pkts.empty?)
+        Thread.pass
+      end
+    end
+
+    def stop
+      @running_mutex.synchronize { @running = false }
+    end
+
+    def running?
+      @running_mutex.synchronize { @running }
     end
 
 =begin rdoc
@@ -82,17 +108,23 @@ Note: this will perform a blocking read on the serial device.
     def read_packet
 
       pkts = []
-      @semaphore.synchronize {
-        if wait_for_byte(BT_SYNC) and wait_for_byte(BT_SYNC)
-          plen = self.getbyte
-          if plen and plen < BT_SYNC
-            pkts = read_payload(plen)
-          else
-            $stderr.puts "Invalid packet size: #{plen} bytes" if @verbose
-          end
+      if wait_for_byte(BT_SYNC) and wait_for_byte(BT_SYNC)
+        plen = getbyte
+        if plen and plen < BT_SYNC
+          pkts = read_payload(plen)
+        else
+          $stderr.puts "Invalid packet size: #{plen} bytes" if @verbose
         end
-      }
+      end
       pkts
+    end
+
+    def read_packet_buffer
+      @buffer_mutex.synchronize {
+        pkts = @buffer
+        @buffer = []
+        pkts
+      }
     end
 
     private
@@ -101,7 +133,7 @@ Note: this will perform a blocking read on the serial device.
       str = self.read(plen)
       buf = str ? str.bytes.to_a : []
 
-      checksum = self.getbyte
+      checksum = getbyte
 
       buf_cs = buf.inject(0) { |sum, b| sum + b } & 0xFF
       buf_cs = ~buf_cs & 0xFF
@@ -113,10 +145,11 @@ Note: this will perform a blocking read on the serial device.
       pkts = Packet.parse buf
     end
 
-    def wait_for_byte(val, max_counter=500)
+    def wait_for_byte(val, max_counter=10)
       max_counter.times do 
         c = self.getbyte
         return true if (c == val)
+        sleep 0.01
       end
       false
     end
@@ -157,7 +190,7 @@ According to the MDT, Mindset packets are sent at the following intervals:
 Each read will therefore return 64 RAW packets. Every eighth read will also 
 return 1 eSense, ASIC_EEG, and POOR_SIGNAL packet.
 =end
-    def read_packet
+    def read_packet_buffer
       packets = @data[:wave][@wave_idx, 64].map { |val| 
                 Packet.factory(:wave, val)  }
       @wave_idx += 64
